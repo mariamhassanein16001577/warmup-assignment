@@ -47,13 +47,18 @@ function isEidPeriod(date) {
 }
 
 function readLines(filePath) {
-    let content = fs.readFileSync(filePath, "utf8");
-    if (content.trim() === "") return [];
-    return content.trim().split("\n");
+    let content = fs.readFileSync(filePath, "utf8").trim();
+    if (content === "") return [];
+    return content.split(/\r?\n/);
 }
 
 function parseShiftLine(line) {
     let parts = line.split(",");
+
+    for (let i = 0; i < parts.length; i++) {
+        parts[i] = parts[i].trim();
+    }
+
     return {
         driverID: parts[0],
         driverName: parts[1],
@@ -67,6 +72,7 @@ function parseShiftLine(line) {
         hasBonus: parts[9] === "true"
     };
 }
+
 
 function shiftObjToLine(obj) {
     return [
@@ -251,25 +257,39 @@ function setBonus(textFile, driverID, date, newValue) {
 // Returns: number (-1 if driverID not found)
 // ============================================================
 function countBonusPerMonth(textFile, driverID, month) {
-    let lines = readLines(textFile);
-    let count = 0;
+    let lines = fs.readFileSync(textFile, "utf8").split(/\r?\n/);
     let foundDriver = false;
+    let count = 0;
     let targetMonth = Number(month);
 
     for (let i = 0; i < lines.length; i++) {
-        let record = parseShiftLine(lines[i]);
+        let line = lines[i].trim();
+        if (line === "") continue;
 
-        if (record.driverID === driverID) {
+        let parts = line.split(",");
+        for (let j = 0; j < parts.length; j++) {
+            parts[j] = parts[j].trim();
+        }
+
+        let currentDriverID = parts[0];
+        let currentDate = parts[2];
+        let currentBonus = parts[9];
+
+        if (currentDriverID === driverID) {
             foundDriver = true;
-            let recordMonth = Number(record.date.split("-")[1]);
 
-            if (recordMonth === targetMonth && record.hasBonus === true) {
+            let currentMonth = Number(currentDate.split("-")[1]);
+
+            if (currentMonth === targetMonth && currentBonus === "true") {
                 count++;
             }
         }
     }
 
-    if (!foundDriver) return -1;
+    if (!foundDriver) {
+        return -1;
+    }
+
     return count;
 }
 
