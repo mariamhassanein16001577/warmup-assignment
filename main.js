@@ -1,5 +1,94 @@
 const fs = require("fs");
 
+// -------------------- Helper Functions --------------------
+function parse12HourTime(timeStr) {
+    let parts = timeStr.trim().toLowerCase().split(" ");
+    let timePart = parts[0];
+    let period = parts[1];
+
+    let timePieces = timePart.split(":");
+    let hours = Number(timePieces[0]);
+    let minutes = Number(timePieces[1]);
+    let seconds = Number(timePieces[2]);
+
+    if (period === "am" && hours === 12) {
+        hours = 0;
+    } else if (period === "pm" && hours !== 12) {
+        hours += 12;
+    }
+
+    return hours * 3600 + minutes * 60 + seconds;
+}
+
+function parseDuration(durationStr) {
+    let parts = durationStr.trim().split(":");
+    let hours = Number(parts[0]);
+    let minutes = Number(parts[1]);
+    let seconds = Number(parts[2]);
+
+    return hours * 3600 + minutes * 60 + seconds;
+}
+
+function formatDuration(totalSeconds) {
+    if (totalSeconds < 0) totalSeconds = 0;
+
+    let hours = Math.floor(totalSeconds / 3600);
+    let minutes = Math.floor((totalSeconds % 3600) / 60);
+    let seconds = totalSeconds % 60;
+
+    let mm = minutes < 10 ? "0" + minutes : "" + minutes;
+    let ss = seconds < 10 ? "0" + seconds : "" + seconds;
+
+    return hours + ":" + mm + ":" + ss;
+}
+
+function isEidPeriod(date) {
+    return date >= "2025-04-10" && date <= "2025-04-30";
+}
+
+function readLines(filePath) {
+    let content = fs.readFileSync(filePath, "utf8");
+    if (content.trim() === "") return [];
+    return content.trim().split("\n");
+}
+
+function parseShiftLine(line) {
+    let parts = line.split(",");
+    return {
+        driverID: parts[0],
+        driverName: parts[1],
+        date: parts[2],
+        startTime: parts[3],
+        endTime: parts[4],
+        shiftDuration: parts[5],
+        idleTime: parts[6],
+        activeTime: parts[7],
+        metQuota: parts[8] === "true",
+        hasBonus: parts[9] === "true"
+    };
+}
+
+function shiftObjToLine(obj) {
+    return [
+        obj.driverID,
+        obj.driverName,
+        obj.date,
+        obj.startTime,
+        obj.endTime,
+        obj.shiftDuration,
+        obj.idleTime,
+        obj.activeTime,
+        obj.metQuota,
+        obj.hasBonus
+    ].join(",");
+}
+
+function getDayName(dateStr) {
+    let days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    let d = new Date(dateStr);
+    return days[d.getDay()];
+}
+
 // ============================================================
 // Function 1: getShiftDuration(startTime, endTime)
 // startTime: (typeof string) formatted as hh:mm:ss am or hh:mm:ss pm
@@ -7,7 +96,9 @@ const fs = require("fs");
 // Returns: string formatted as h:mm:ss
 // ============================================================
 function getShiftDuration(startTime, endTime) {
-    // TODO: Implement this function
+    let startSeconds = parse12HourTime(startTime);
+    let endSeconds = parse12HourTime(endTime);
+    return formatDuration(endSeconds - startSeconds);
 }
 
 // ============================================================
@@ -17,7 +108,23 @@ function getShiftDuration(startTime, endTime) {
 // Returns: string formatted as h:mm:ss
 // ============================================================
 function getIdleTime(startTime, endTime) {
-    // TODO: Implement this function
+    let startSeconds = parse12HourTime(startTime);
+    let endSeconds = parse12HourTime(endTime);
+
+    let deliveryStart = parse12HourTime("8:00:00 am");
+    let deliveryEnd = parse12HourTime("10:00:00 pm");
+
+    let idle = 0;
+
+    if (startSeconds < deliveryStart) {
+        idle += Math.min(endSeconds, deliveryStart) - startSeconds;
+    }
+
+    if (endSeconds > deliveryEnd) {
+        idle += endSeconds - Math.max(startSeconds, deliveryEnd);
+    }
+
+    return formatDuration(idle);
 }
 
 // ============================================================
@@ -27,7 +134,9 @@ function getIdleTime(startTime, endTime) {
 // Returns: string formatted as h:mm:ss
 // ============================================================
 function getActiveTime(shiftDuration, idleTime) {
-    // TODO: Implement this function
+    let shiftSeconds = parseDuration(shiftDuration);
+    let idleSeconds = parseDuration(idleTime);
+    return formatDuration(shiftSeconds - idleSeconds);
 }
 
 // ============================================================
@@ -37,7 +146,16 @@ function getActiveTime(shiftDuration, idleTime) {
 // Returns: boolean
 // ============================================================
 function metQuota(date, activeTime) {
-    // TODO: Implement this function
+    let activeSeconds = parseDuration(activeTime);
+    let requiredSeconds;
+
+    if (isEidPeriod(date)) {
+        requiredSeconds = 6 * 3600;
+    } else {
+        requiredSeconds = 8 * 3600 + 24 * 60;
+    }
+
+    return activeSeconds >= requiredSeconds;
 }
 
 // ============================================================
